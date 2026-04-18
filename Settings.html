@@ -113,32 +113,64 @@
         }
 
         function processRoster() { handleDataProcessing(document.getElementById('roster-input').value); }
+// --- 기초 명단 정제 및 저장 로직 (업데이트 버전) ---
+function handleDataProcessing(rawData) {
+    const rows = rawData.split('\n'); // 줄바꿈 단위로 자르기
+    let successCount = 0;
+    let updates = {};
 
-        function handleDataProcessing(rawData) {
-            const rows = rawData.split('\n');
-            let successCount = 0; let updates = {};
+    rows.forEach(row => {
+        if (!row.trim()) return; // 빈 줄은 건너뜁니다.
 
-            rows.forEach(row => {
-                if (!row.trim()) return;
-                const cols = row.split(/[\t,]/);
-                if (cols.length >= 4) {
-                    const grade = cols[0].trim();
-                    const classNum = cols[1].trim().padStart(2, '0');
-                    const studentNum = cols[2].trim().padStart(2, '0');
-                    const cleanName = cols[3].replace(/[\s!@#$%^&*(),.?":{}|<>]/g, ''); 
-                    const phone = cols[4] ? cols[4].trim() : "없음";
-                    const studentId = `${grade}${classNum}${studentNum}`;
+        // 엑셀(탭), CSV(쉼표), 혹은 공백으로 구분된 데이터를 자릅니다.
+        const cols = row.split(/[\t, ]+/).filter(Boolean); 
+        
+        // 최소 4개(학년, 반, 번호, 성명) 이상의 데이터가 있어야 처리합니다.
+        if (cols.length >= 4) {
+            const grade = cols[0].trim(); // 학년 (1자리)
+            
+            // 반과 번호를 2자리 형식으로 맞춤 (예: 1 -> 01)
+            const classNum = cols[1].trim().padStart(2, '0');
+            const studentNum = cols[2].trim().padStart(2, '0');
+            
+            // 성명을 '이름'으로 처리하며 공백 및 특수문자 제거
+            const rawName = cols[3];
+            const cleanName = rawName.replace(/[\s!@#$%^&*(),.?":{}|<>]/g, ''); 
+            
+            // 전화번호 (없을 경우 '없음'으로 표시)
+            const phone = cols[4] ? cols[4].trim() : "없음";
 
-                    updates['settings/roster/' + studentId] = { name: cleanName, phone: phone, grade: grade };
-                    successCount++;
-                }
-            });
-            if (successCount === 0) return alert("데이터 형식을 확인해주세요.");
-            db.ref().update(updates).then(() => {
-                document.getElementById('roster-result').innerText = `총 ${successCount}명 저장 완료.`;
-            });
+            // 5자리 고유 학번 생성 (학년+반+번호)
+            const studentId = `${grade}${classNum}${studentNum}`;
+
+            // Firebase DB 저장 경로 및 데이터 구조 설정
+            // '성명' 대신 'name(이름)'이라는 키를 사용하여 저장합니다.
+            updates['settings/roster/' + studentId] = {
+                name: cleanName,
+                phone: phone,
+                grade: grade
+            };
+            successCount++;
         }
+    });
 
+    if (successCount === 0) {
+        alert("데이터 형식을 확인해주세요.\n(학년, 반, 번호, 성명, 전화번호 순서여야 합니다.)");
+        return;
+    }
+
+    // Firebase에 한꺼번에 업데이트
+    db.ref().update(updates).then(() => {
+        const resultMsg = `총 ${successCount}명의 명단이 '학번/이름/전화번호' 형식으로 변환되어 저장되었습니다.`;
+        document.getElementById('roster-result').innerText = resultMsg;
+        document.getElementById('roster-input').value = '';
+        if(document.getElementById('roster-file')) document.getElementById('roster-file').value = '';
+    }).catch(error => {
+        alert("저장 중 오류가 발생했습니다: " + error.message);
+    });
+}
+
+        
         let currentRoom = 'room1';
         function selectRoom(roomId) { currentRoom = roomId; }
         
