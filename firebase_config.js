@@ -1,13 +1,14 @@
 // firebase_config.js
-  const firebaseConfig = {
+const firebaseConfig = {
     apiKey: "AIzaSyAVh7rB3xWJrTVefjasPUbHbQiXNJ8GnDQ",
     authDomain: "evening-self-study-9a46e.firebaseapp.com",
     projectId: "evening-self-study-9a46e",
     storageBucket: "evening-self-study-9a46e.firebasestorage.app",
     messagingSenderId: "620033612094",
-    appId: "1:620033612094:web:e3e5a8822fdef255bb746f"
-  };
-
+    appId: "1:620033612094:web:e3e5a8822fdef255bb746f",
+    // 🌟 추가된 핵심 코드: 실시간 데이터베이스 주소
+    databaseURL: "https://evening-self-study-9a46e-default-rtdb.firebaseio.com"
+};
 
 // Firebase 초기화
 firebase.initializeApp(firebaseConfig);
