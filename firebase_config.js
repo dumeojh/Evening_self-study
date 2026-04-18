@@ -1,13 +1,13 @@
 // firebase_config.js
-const firebaseConfig = {
-    apiKey: "선생님의_API_KEY",
-    authDomain: "선생님의_PROJECT_ID.firebaseapp.com",
-    databaseURL: "https://선생님의_PROJECT_ID-default-rtdb.firebaseio.com",
-    projectId: "선생님의_PROJECT_ID",
-    storageBucket: "선생님의_PROJECT_ID.appspot.com",
-    messagingSenderId: "선생님의_SENDER_ID",
-    appId: "선생님의_APP_ID"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyAVh7rB3xWJrTVefjasPUbHbQiXNJ8GnDQ",
+    authDomain: "evening-self-study-9a46e.firebaseapp.com",
+    projectId: "evening-self-study-9a46e",
+    storageBucket: "evening-self-study-9a46e.firebasestorage.app",
+    messagingSenderId: "620033612094",
+    appId: "1:620033612094:web:e3e5a8822fdef255bb746f"
+  };
+
 
 // Firebase 초기화
 firebase.initializeApp(firebaseConfig);
