@@ -7,7 +7,7 @@ const firebaseConfig = {
     messagingSenderId: "620033612094",
     appId: "1:620033612094:web:e3e5a8822fdef255bb746f",
     // 🌟 추가된 핵심 코드: 실시간 데이터베이스 주소
-    databaseURL: "https://evening-self-study-9a46e-default-rtdb.firebaseio.com"
+    databaseURL: "https://evening-self-study-9a46e-default-rtdb.firebaseio.com/"
 };
 
 // Firebase 초기화
