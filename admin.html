@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>교사용 관리 대시보드</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="firebase_config.js"></script>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; }
+        .student-list { display: flex; flex-wrap: wrap; gap: 10px; }
+        
+        /* 좌석/명단 카드의 기본 디자인 */
+        .card { 
+            border: 1px solid #ccc; padding: 15px; border-radius: 8px; 
+            width: 150px; text-align: center; font-weight: bold;
+        }
+        
+        /* 상태별 색상 지정 */
+        .status-normal { background-color: #d4edda; color: #155724; } /* 파란/초록빛 (정상) */
+        .status-late { background-color: #fff3cd; color: #856404; border: 2px solid orange; } /* 주황빛 (지각) */
+        .status-absent { background-color: #f8f9fa; color: #6c757d; } /* 회색 (미입실) */
+    </style>
+</head>
+<body>
+
+    <h1>오늘의 자기주도학습 현황 (실시간)</h1>
+    <div id="dashboard" class="student-list">
+        데이터를 불러오는 중입니다...
+    </div>
+
+    <script>
+        const dashboard = document.getElementById('dashboard');
+        const today = new Date().toISOString().split('T')[0];
+
+        // 핵심: DB의 오늘 날짜(today) 데이터를 '실시간으로' 감시(on)합니다.
+        // 누군가 키오스크에서 스캔하여 DB가 변하면, 이 함수가 자동으로 다시 실행됩니다.
+        db.ref('attendance/' + today).on('value', (snapshot) => {
+            // 화면 초기화
+            dashboard.innerHTML = '';
+            
+            const data = snapshot.val(); // DB에서 가져온 데이터 전체
+
+            if (data) {
+                // 데이터가 있으면 반복문을 돌면서 화면에 학생 카드를 만듭니다.
+                for (let studentId in data) {
+                    let info = data[studentId];
+                    let card = document.createElement('div');
+                    
+                    // 상태에 따라 CSS 클래스(색상)를 다르게 적용합니다.
+                    if(info.status === "정상입실") {
+                        card.className = "card status-normal";
+                    } else if (info.status === "지각") {
+                        card.className = "card status-late";
+                    } else {
+                        card.className = "card status-absent";
+                    }
+
+                    // 카드 안에 들어갈 텍스트 (이름과 상태, 시간)
+                    card.innerHTML = `
+                        <div style="font-size: 1.2em;">${info.name}</div>
+                        <div style="font-size: 0.9em; margin-top:5px;">${info.status}</div>
+                        <div style="font-size: 0.8em; color:gray;">${info.timestamp}</div>
+                    `;
+                    
+                    // 화면에 카드 추가
+                    dashboard.appendChild(card);
+                }
+            } else {
+                dashboard.innerHTML = '오늘 출석한 학생이 없습니다.';
+            }
+        });
+    </script>
+</body>
+</html>
