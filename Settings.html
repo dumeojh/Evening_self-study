@@ -104,47 +104,48 @@
         }
 
         // CSV 파일 읽기
-        function processFile() {
-            const file = document.getElementById('roster-file').files[0];
-            if (!file) return alert("파일을 선택하세요.");
-            const reader = new FileReader();
-            reader.onload = e => handleDataProcessing(e.target.result);
-            reader.readAsText(file, "EUC-KR"); // 한글 인코딩
-        }
+// --- 1. 파일 업로드 버튼 클릭 시 실행 ---
+function processFile() {
+    const file = document.getElementById('roster-file').files[0];
+    const resultDiv = document.getElementById('roster-result');
 
+    if (!file) {
+        alert("업로드할 엑셀(CSV) 파일을 먼저 선택해주세요.");
+        return;
+    }
+
+    // [상황 표시 1] 파일을 읽기 시작함
+    resultDiv.style.color = "#ff9800"; // 주황색
+    resultDiv.innerText = "⏳ 파일을 읽어오는 중입니다. 잠시만 기다려주세요...";
+
+    const reader = new FileReader();
+    reader.onload = e => handleDataProcessing(e.target.result);
+    reader.readAsText(file, "EUC-KR"); // 한글 인코딩
+}
         function processRoster() { handleDataProcessing(document.getElementById('roster-input').value); }
-// --- 기초 명단 정제 및 저장 로직 (업데이트 버전) ---
+
+
+        
+// --- 2. 데이터 정제 및 DB 저장 진행 ---
 function handleDataProcessing(rawData) {
-    const rows = rawData.split('\n'); // 줄바꿈 단위로 자르기
+    const resultDiv = document.getElementById('roster-result');
+    const rows = rawData.split('\n'); 
     let successCount = 0;
     let updates = {};
 
     rows.forEach(row => {
-        if (!row.trim()) return; // 빈 줄은 건너뜁니다.
+        if (!row.trim()) return; 
 
-        // 엑셀(탭), CSV(쉼표), 혹은 공백으로 구분된 데이터를 자릅니다.
         const cols = row.split(/[\t, ]+/).filter(Boolean); 
         
-        // 최소 4개(학년, 반, 번호, 성명) 이상의 데이터가 있어야 처리합니다.
         if (cols.length >= 4) {
-            const grade = cols[0].trim(); // 학년 (1자리)
-            
-            // 반과 번호를 2자리 형식으로 맞춤 (예: 1 -> 01)
+            const grade = cols[0].trim(); 
             const classNum = cols[1].trim().padStart(2, '0');
             const studentNum = cols[2].trim().padStart(2, '0');
-            
-            // 성명을 '이름'으로 처리하며 공백 및 특수문자 제거
-            const rawName = cols[3];
-            const cleanName = rawName.replace(/[\s!@#$%^&*(),.?":{}|<>]/g, ''); 
-            
-            // 전화번호 (없을 경우 '없음'으로 표시)
+            const cleanName = cols[3].replace(/[\s!@#$%^&*(),.?":{}|<>]/g, ''); 
             const phone = cols[4] ? cols[4].trim() : "없음";
-
-            // 5자리 고유 학번 생성 (학년+반+번호)
             const studentId = `${grade}${classNum}${studentNum}`;
 
-            // Firebase DB 저장 경로 및 데이터 구조 설정
-            // '성명' 대신 'name(이름)'이라는 키를 사용하여 저장합니다.
             updates['settings/roster/' + studentId] = {
                 name: cleanName,
                 phone: phone,
@@ -154,22 +155,38 @@ function handleDataProcessing(rawData) {
         }
     });
 
+    // 데이터가 이상해서 1명도 추출하지 못한 경우
     if (successCount === 0) {
-        alert("데이터 형식을 확인해주세요.\n(학년, 반, 번호, 성명, 전화번호 순서여야 합니다.)");
+        resultDiv.style.color = "red";
+        resultDiv.innerText = "❌ 저장 실패: 데이터 형식이 맞지 않습니다. (학년, 반, 번호, 성명 순서인지 확인해주세요)";
+        alert("데이터 변환에 실패했습니다. 엑셀 파일을 다시 확인해주세요.");
         return;
     }
 
+    // [상황 표시 2] 정제 완료 후 DB로 전송 중
+    resultDiv.style.color = "blue";
+    resultDiv.innerText = `⏳ 총 ${successCount}명의 데이터를 서버에 저장하는 중입니다...`;
+
     // Firebase에 한꺼번에 업데이트
     db.ref().update(updates).then(() => {
-        const resultMsg = `총 ${successCount}명의 명단이 '학번/이름/전화번호' 형식으로 변환되어 저장되었습니다.`;
-        document.getElementById('roster-result').innerText = resultMsg;
+        // [상황 표시 3] 저장 완벽히 성공!
+        resultDiv.style.color = "green";
+        resultDiv.innerText = `✅ 성공! 총 ${successCount}명의 명단이 시스템에 완벽하게 등록되었습니다.`;
+        
+        // 확실한 확인을 위해 팝업창 띄우기
+        alert(`[등록 완료] ${successCount}명의 명단 저장이 완료되었습니다.`);
+
+        // 다음 작업을 위해 입력창 비우기
         document.getElementById('roster-input').value = '';
         if(document.getElementById('roster-file')) document.getElementById('roster-file').value = '';
+
     }).catch(error => {
-        alert("저장 중 오류가 발생했습니다: " + error.message);
+        // [상황 표시 4] 인터넷 끊김 등의 이유로 에러 발생 시
+        resultDiv.style.color = "red";
+        resultDiv.innerText = "❌ 서버 저장 실패: " + error.message;
+        alert("저장 중 인터넷 또는 서버 오류가 발생했습니다.");
     });
 }
-
         
         let currentRoom = 'room1';
         function selectRoom(roomId) { currentRoom = roomId; }
