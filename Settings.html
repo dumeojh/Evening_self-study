@@ -128,11 +128,13 @@
 
         function processRoster() { handleDataProcessing(document.getElementById('roster-input').value); }
 
-// --- 2. 데이터 정제 및 DB 저장 진행 (어떤 줄바꿈이든 완벽 인식 + 대량 전송) ---
+
+
+
+        
+// --- 2. 데이터 정제 및 DB 저장 진행 (기존 명단 삭제 후 새로 저장) ---
 function handleDataProcessing(rawData) {
     const resultDiv = document.getElementById('roster-result');
-    
-    // 🌟 핵심 수정: 윈도우, 맥(Mac), 구형 엑셀 등 어떤 줄바꿈 기호라도 완벽하게 쪼개도록 업그레이드!
     const rows = rawData.split(/\r?\n|\r/);
     
     let successCount = 0; 
@@ -140,6 +142,7 @@ function handleDataProcessing(rawData) {
     let updates = {}; 
     let firstError = "";
 
+    // 데이터 분석 단계
     rows.forEach((row, index) => {
         if (index === 0) return; // 첫 줄(제목) 무시
         if (!row.trim()) return; // 빈 줄 무시
@@ -164,7 +167,6 @@ function handleDataProcessing(rawData) {
 
         const cleanName = cols[3].replace(/[\s!@#$%^&*(),.?":{}|<>]/g, '');
         const phone = cols[4] ? cols[4].trim() : "없음";
-        
         const studentId = `${grade}${classNum.padStart(2, '0')}${studentNum.padStart(2, '0')}`;
 
         updates['settings/roster/' + studentId] = { 
@@ -177,49 +179,48 @@ function handleDataProcessing(rawData) {
 
     if (successCount === 0) {
         resultDiv.style.color = "red";
-        resultDiv.innerHTML = `❌ 실패: 저장할 유효한 학생 데이터가 없습니다.<br><small>(${firstError || '내용이 비어있습니다'})</small>`;
+        resultDiv.innerHTML = `❌ 실패: 저장할 유효한 데이터가 없습니다.`;
         return;
     }
 
-    // --- 대량 데이터 분할 전송 로직 (120명 멈춤 방지) ---
-    const entries = Object.entries(updates);
-    const totalCount = entries.length;
-    let completedCount = 0;
-    const chunkSize = 10; // 10명씩 안전하게 전송
+    // 🌟 핵심 로직: 기존 명단을 싹 지우고 전송 시작
+    if (confirm(`기존 명단을 모두 삭제하고, 새로 분석된 ${successCount}명의 명단으로 교체하시겠습니까?`)) {
+        resultDiv.style.color = "blue";
+        resultDiv.innerText = "⏳ 기존 명단 삭제 중...";
 
-    resultDiv.style.color = "blue";
-    resultDiv.innerText = `⏳ 서버 전송 준비 중... (총 ${totalCount}명)`;
+        // 1. 기존 노드 삭제
+        db.ref('settings/roster').remove().then(() => {
+            // 2. 삭제 성공 후 전송 시작
+            const entries = Object.entries(updates);
+            const totalCount = entries.length;
+            let completedCount = 0;
+            const chunkSize = 10;
 
-    function uploadChunk(startIndex) {
-        const chunk = entries.slice(startIndex, startIndex + chunkSize);
-        if (chunk.length === 0) {
-            resultDiv.style.color = "green";
-            const failMessage = failCount > 0 ? `<br><small style="color:orange;">⚠️ ${failCount}건 제외됨 (${firstError})</small>` : '';
-            resultDiv.innerHTML = `✅ 성공: 총 ${totalCount}명의 학생 명단이 등록되었습니다! ${failMessage}`;
-            alert(`${totalCount}명 저장 완료!`);
-            if (document.getElementById('tab-view').classList.contains('active')) loadRoster();
-            return;
-        }
+            function uploadChunk(startIndex) {
+                const chunk = entries.slice(startIndex, startIndex + chunkSize);
+                if (chunk.length === 0) {
+                    resultDiv.style.color = "green";
+                    resultDiv.innerHTML = `✅ 교체 완료: 총 ${totalCount}명의 명단으로 갱신되었습니다.`;
+                    alert(`기존 자료 삭제 후 ${totalCount}명 저장 완료!`);
+                    if (document.getElementById('tab-view').classList.contains('active')) loadRoster();
+                    return;
+                }
 
-        const chunkUpdates = {};
-        chunk.forEach(([key, value]) => chunkUpdates[key] = value);
+                const chunkUpdates = {};
+                chunk.forEach(([key, value]) => chunkUpdates[key] = value);
 
-        db.ref().update(chunkUpdates)
-            .then(() => {
-                completedCount += chunk.length;
-                resultDiv.innerText = `⏳ 저장 중... (${completedCount} / ${totalCount}명 완료)`;
-                // 0.2초 쉬고 다음 10명 전송
-                setTimeout(() => uploadChunk(startIndex + chunkSize), 200);
-            })
-            .catch(error => {
-                resultDiv.style.color = "red";
-                resultDiv.innerHTML = `❌ 저장 실패 (${completedCount}명 이후 멈춤): ${error.message}`;
-            });
+                db.ref().update(chunkUpdates).then(() => {
+                    completedCount += chunk.length;
+                    resultDiv.innerText = `⏳ 새 명단 저장 중... (${completedCount} / ${totalCount} 완료)`;
+                    setTimeout(() => uploadChunk(startIndex + chunkSize), 200);
+                });
+            }
+            uploadChunk(0);
+        }).catch(err => {
+            alert("초기화 중 오류 발생: " + err.message);
+        });
     }
-
-    uploadChunk(0);
 }
-
 
 
 
