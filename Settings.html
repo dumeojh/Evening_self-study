@@ -1,206 +1,4 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>환경설정 - 자기주도학습</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="firebase_config.js"></script>
-    <style>
-        body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background-color: #f4f7f6; }
-        h1, h2 { color: #333; }
-        #login-screen { text-align: center; margin-top: 100px; }
-        #login-screen input { padding: 10px; font-size: 18px; width: 200px; text-align: center; }
-        #login-screen button { padding: 10px 20px; font-size: 18px; cursor: pointer; background-color: #4CAF50; color: white; border: none; }
-        #settings-main { display: none; max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        .tab-menu { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
-        .tab-menu button { padding: 10px 15px; cursor: pointer; border: 1px solid #ccc; background: #eee; font-weight: bold; }
-        .tab-menu button.active { background: #4CAF50; color: white; border-color: #4CAF50; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .form-group { margin-bottom: 15px; }
-        label { display: inline-block; width: 120px; font-weight: bold; }
-        input[type="text"], input[type="time"], input[type="datetime-local"], input[type="number"] { padding: 8px; width: 200px; }
-        textarea { width: 100%; height: 100px; padding: 10px; box-sizing: border-box; }
-        .save-btn { background-color: #2196F3; color: white; padding: 10px 20px; border: none; cursor: pointer; margin-top: 10px; }
-        
-        /* 명단 표 스타일 */
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
-        th { background-color: #f2f2f2; }
-        .delete-btn { background-color: #ff4d4d; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; }
-        .search-box { margin-bottom: 15px; width: 100%; padding: 10px; box-sizing: border-box; font-size: 16px; }
-
-        .seat-grid { display: grid; gap: 5px; margin-top: 10px; justify-content: start; }
-        .seat { width: 40px; height: 40px; background-color: #ccc; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
-        .seat.active { background-color: #4CAF50; color: white; }
-    </style>
-</head>
-<body>
-    <div id="login-screen">
-        <h2>관리자 설정 접근2</h2>
-        <input type="password" id="admin-pw" placeholder="비밀번호(1234)">
-        <button onclick="checkPassword()">확인</button>
-    </div>
-
-    <div id="settings-main">
-        <h1>⚙️ 환경설정</h1>
-        <div class="tab-menu">
-            <button class="tab-btn active" onclick="openTab('tab-roster')">1. 기초명단 관리</button>
-            <button class="tab-btn" onclick="openTab('tab-time')">2. 시간 설정</button>
-            <button class="tab-btn" onclick="openTab('tab-seat')">3. 좌석 설계</button>
-            <button class="tab-btn" onclick="openTab('tab-period')">4. 신청 기간</button>
-            <button class="tab-btn" onclick="openTab('tab-view')">5. 전체 명단 조회</button>
-        </div>
-
-        <div id="tab-roster" class="tab-content active">
-            <h2>기초명단 일괄 등록</h2>
-            <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                <p><strong>CSV 파일 업로드 (학년, 반, 번호, 성명, 전화번호)</strong></p>
-                <input type="file" id="roster-file" accept=".csv" style="margin-bottom: 10px;"><br>
-                <button class="save-btn" style="background-color: #4CAF50;" onclick="processFile()">파일 업로드 및 저장</button>
-            </div>
-            <p><strong>또는 엑셀에서 복사하여 붙여넣기</strong></p>
-            <textarea id="roster-input" placeholder="여기에 붙여넣으세요..."></textarea>
-            <button class="save-btn" onclick="processRoster()">직접 붙여넣기 저장</button>
-            <div id="roster-result" style="margin-top:10px; color:blue; font-weight:bold;"></div>
-        </div>
-
-        <div id="tab-view" class="tab-content">
-            <h2>전체 등록 명단 조회</h2>
-            <input type="text" id="roster-search" class="search-box" placeholder="학번 또는 이름으로 검색..." onkeyup="filterRoster()">
-            <div id="roster-list-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>학번</th>
-                            <th>이름</th>
-                            <th>전화번호</th>
-                            <th>관리</th>
-                        </tr>
-                    </thead>
-                    <tbody id="roster-table-body">
-                        </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div id="tab-time" class="tab-content">
-            <h2>지각 허용 시간 설정</h2>
-            <div class="form-group">
-                <label>지각 허용 시간 :</label> 
-                <input type="number" id="grace-period" value="5"> 분 
-            </div>
-            <button class="save-btn" onclick="saveSettings('time')">저장</button>
-        </div>
-
-        <div id="tab-seat" class="tab-content">
-            <h2>실별 좌석 설계</h2>
-            <select id="room-select" onchange="selectRoom(this.value)">
-                <option value="room1">1실</option><option value="room2">2실</option>
-            </select>
-            <button onclick="generateGrid()">도면 생성</button>
-            <div id="seat-map" class="seat-grid"></div>
-            <button class="save-btn" onclick="saveSettings('seat')">도면 저장</button>
-        </div>
-
-        <div id="tab-period" class="tab-content">
-            <h2>학생 신청 활성화 기간</h2>
-            시작: <input type="datetime-local" id="apply-start"><br>
-            종료: <input type="datetime-local" id="apply-end"><br>
-            <button class="save-btn" onclick="saveSettings('period')">기간 저장</button>
-        </div>
-    </div>
-
-    <script>
-        function checkPassword() {
-            if (document.getElementById('admin-pw').value === '1234') {
-                document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('settings-main').style.display = 'block';
-            } else alert('비밀번호 오류');
-        }
-
-        function openTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            event.target.classList.add('active');
-
-            // 5번 탭을 누를 때만 명단을 새로 불러옵니다.
-            if(tabId === 'tab-view') { loadRoster(); }
-        }
-
-        // 명단 조회 로직 (Firebase에서 불러오기)
-        function loadRoster() {
-            const tableBody = document.getElementById('roster-table-body');
-            tableBody.innerHTML = '<tr><td colspan="4">데이터를 불러오는 중...</td></tr>';
-
-            db.ref('settings/roster').once('value').then(snapshot => {
-                tableBody.innerHTML = '';
-                const data = snapshot.val();
-                if(data) {
-                    // 학번(Key) 기준으로 정렬하여 배열로 만듦
-                    const sortedKeys = Object.keys(data).sort();
-                    sortedKeys.forEach(id => {
-                        const student = data[id];
-                        const row = `<tr>
-                            <td>${id}</td>
-                            <td>${student.name}</td>
-                            <td>${student.phone}</td>
-                            <td><button class="delete-btn" onclick="deleteStudent('${id}')">삭제</button></td>
-                        </tr>`;
-                        tableBody.innerHTML += row;
-                    });
-                } else {
-                    tableBody.innerHTML = '<tr><td colspan="4">등록된 학생이 없습니다.</td></tr>';
-                }
-            });
-        }
-
-        // 검색 필터 로직
-        function filterRoster() {
-            const input = document.getElementById('roster-search').value.toLowerCase();
-            const rows = document.getElementById('roster-table-body').getElementsByTagName('tr');
-
-            for (let i = 0; i < rows.length; i++) {
-                const idCell = rows[i].getElementsByTagName('td')[0];
-                const nameCell = rows[i].getElementsByTagName('td')[1];
-                if (idCell || nameCell) {
-                    const idText = idCell.textContent || idCell.innerText;
-                    const nameText = nameCell.textContent || nameCell.innerText;
-                    if (idText.toLowerCase().indexOf(input) > -1 || nameText.toLowerCase().indexOf(input) > -1) {
-                        rows[i].style.display = "";
-                    } else {
-                        rows[i].style.display = "none";
-                    }
-                }
-            }
-        }
-
-        // 학생 개별 삭제 로직
-        function deleteStudent(id) {
-            if(confirm(`학번 ${id} 학생을 삭제하시겠습니까?`)) {
-                db.ref('settings/roster/' + id).remove().then(() => {
-                    alert('삭제되었습니다.');
-                    loadRoster(); // 목록 새로고침
-                });
-            }
-        }
-
-        // (이전과 동일한 명단 정제 로직)
-        function processFile() {
-            const file = document.getElementById('roster-file').files[0];
-            const resultDiv = document.getElementById('roster-result');
-            if (!file) return alert("파일을 선택하세요.");
-            resultDiv.innerText = "⏳ 파일을 읽는 중...";
-            const reader = new FileReader();
-            reader.onload = e => handleDataProcessing(e.target.result);
-            reader.readAsText(file, "EUC-KR");
-        }
-
-        function processRoster() { handleDataProcessing(document.getElementById('roster-input').value); }
-// --- 2. 데이터 정제 및 DB 저장 진행 (상세 오류 알림 기능 추가) ---
+// --- 2. 데이터 정제 및 DB 저장 진행 ---
 function handleDataProcessing(rawData) {
     const resultDiv = document.getElementById('roster-result');
     const rows = rawData.split('\n'); 
@@ -208,20 +6,25 @@ function handleDataProcessing(rawData) {
     let successCount = 0;
     let failCount = 0;
     let updates = {};
-    let firstErrorMessage = ""; // 첫 번째로 발견된 오류의 구체적인 원인 저장
+    let firstErrorMessage = ""; 
 
     rows.forEach((row, index) => {
         if (!row.trim()) return; // 완전 빈 줄은 그냥 넘어갑니다.
 
         const cols = row.split(/[\t, ]+/).filter(Boolean); 
+
+        // 🌟 핵심 추가 코드: 첫 번째 줄(index 0)의 첫 칸이 숫자가 아니면(즉, '학년' 같은 제목이면) 건너뜁니다.
+        if (index === 0 && isNaN(cols[0])) {
+            return; 
+        }
         
         // [검사 1] 항목 갯수 확인 (최소 4개 필요)
         if (cols.length < 4) {
             failCount++;
             if (!firstErrorMessage) {
-                firstErrorMessage = `${index + 1}번째 줄 오류: 항목이 ${cols.length}개뿐입니다. (필수: 학년, 반, 번호, 성명)<br> ➔ 문제의 데이터: "${row.substring(0, 20)}..."`;
+                firstErrorMessage = `${index + 1}번째 줄 오류: 항목이 ${cols.length}개뿐입니다.<br> ➔ 데이터: "${row.substring(0, 20)}..."`;
             }
-            return; // 이 줄은 건너뜀
+            return; 
         }
 
         const grade = cols[0].trim(); 
@@ -232,9 +35,9 @@ function handleDataProcessing(rawData) {
         if (isNaN(grade) || isNaN(classNum) || isNaN(studentNum)) {
             failCount++;
             if (!firstErrorMessage) {
-                firstErrorMessage = `${index + 1}번째 줄 오류: 학년, 반, 번호는 '숫자'여야 합니다.<br> ➔ 문제의 데이터: "${row.substring(0, 20)}..."`;
+                firstErrorMessage = `${index + 1}번째 줄 오류: 학년/반/번호는 '숫자'여야 합니다.<br> ➔ 데이터: "${row.substring(0, 20)}..."`;
             }
-            return; // 이 줄은 건너뜀
+            return; 
         }
 
         // 정상 데이터 처리
@@ -250,34 +53,30 @@ function handleDataProcessing(rawData) {
         successCount++;
     });
 
-    // 🔴 1명도 성공하지 못한 경우 (완전 실패)
+    // 🔴 완전 실패 시
     if (successCount === 0) {
         resultDiv.style.color = "red";
         resultDiv.innerHTML = `❌ <b>저장 실패:</b> 올바른 형식이 아닙니다.<br><br><span style="color:#d32f2f;">${firstErrorMessage || '데이터가 비어있습니다.'}</span>`;
-        alert("데이터 변환에 실패했습니다. 아래의 상세 원인을 확인해주세요.");
+        alert("데이터 변환에 실패했습니다. 상세 원인을 확인해주세요.");
         return;
     }
 
-    // 🟡 일부는 성공하고 일부는 실패한 경우의 경고 메시지 준비
+    // 🟡 일부 실패 경고 메시지
     let warningMsg = "";
     if (failCount > 0) {
         warningMsg = `<br><br><span style="color:#e65100;">⚠️ 주의: ${failCount}개의 줄은 형식이 맞지 않아 제외되었습니다.</span><br><small style="color:gray;">(예: ${firstErrorMessage})</small>`;
     }
 
-    // [상황 표시] 서버 전송 중
+    // [상황 표시]
     resultDiv.style.color = "blue";
     resultDiv.innerText = `⏳ 총 ${successCount}명의 데이터를 서버에 저장하는 중입니다...`;
 
-    // Firebase에 업데이트
+    // Firebase 전송
     db.ref().update(updates).then(() => {
-        // [상황 표시] 저장 완료
         resultDiv.style.color = "green";
-        // innerHTML을 사용하여 경고 메시지가 있으면 아래에 추가로 띄워줍니다.
         resultDiv.innerHTML = `✅ <b>성공! 총 ${successCount}명의 명단이 시스템에 등록되었습니다.</b>${warningMsg}`;
-        
         alert(`[등록 완료] ${successCount}명 저장 성공! ${failCount > 0 ? `(제외된 데이터: ${failCount}건)` : ''}`);
-
-        // 입력창 비우기
+        
         document.getElementById('roster-input').value = '';
         if(document.getElementById('roster-file')) document.getElementById('roster-file').value = '';
 
@@ -287,10 +86,3 @@ function handleDataProcessing(rawData) {
         alert("저장 중 서버 오류가 발생했습니다.");
     });
 }
-        // (좌석 설정 저장 등 나머지 함수들 생략 - 이전과 동일하게 유지)
-        function saveSettings(type) {
-            // ... (기존 코드와 동일)
-        }
-    </script>
-</body>
-</html>
