@@ -128,57 +128,45 @@
 
         function processRoster() { handleDataProcessing(document.getElementById('roster-input').value); }
 
-// --- 2. 데이터 정제 및 DB 저장 진행 (첫 줄 무시 기능 강화) ---
+// --- 2. 데이터 정제 및 DB 저장 진행 (어떤 줄바꿈이든 완벽 인식 + 대량 전송) ---
 function handleDataProcessing(rawData) {
     const resultDiv = document.getElementById('roster-result');
     
-    // 줄바꿈을 기준으로 데이터를 나눕니다.
-    const rows = rawData.split('\n');
+    // 🌟 핵심 수정: 윈도우, 맥(Mac), 구형 엑셀 등 어떤 줄바꿈 기호라도 완벽하게 쪼개도록 업그레이드!
+    const rows = rawData.split(/\r?\n|\r/);
     
     let successCount = 0; 
     let failCount = 0; 
     let updates = {}; 
     let firstError = "";
 
-    // 🌟 핵심 수정: forEach 구문에 index를 사용하여 첫 번째 줄을 판별합니다.
     rows.forEach((row, index) => {
-        
-        // 1. 첫 번째 줄(index 0)은 제목(헤더)이므로 무조건 건너뜁니다!
-        if (index === 0) return; 
+        if (index === 0) return; // 첫 줄(제목) 무시
+        if (!row.trim()) return; // 빈 줄 무시
 
-        // 2. 내용이 아예 없는 빈 줄도 건너뜁니다.
-        if (!row.trim()) return;
-
-        // 3. 탭, 쉼표, 공백 등을 기준으로 데이터를 칸(열)으로 나눕니다.
         const cols = row.split(/[\t, ]+/).filter(Boolean);
         
-        // 항목이 4개 미만이면(예: 이름까지만 복사하고 번호를 빼먹은 경우 등)
         if (cols.length < 4) {
             failCount++;
-            if(!firstError) firstError = `${index + 1}번째 줄 데이터 부족 (학년, 반, 번호, 성명 필수)`;
+            if(!firstError) firstError = `${index + 1}번째 줄: 항목 부족`;
             return;
         }
 
-        // 데이터 할당
         const grade = cols[0].trim();
         const classNum = cols[1].trim();
         const studentNum = cols[2].trim();
 
-        // 학년, 반, 번호 자리에 글자가 들어있는 경우 오류 처리
         if (isNaN(grade) || isNaN(classNum) || isNaN(studentNum)) {
             failCount++;
-            if(!firstError) firstError = `${index + 1}번째 줄 오류: 학년, 반, 번호는 숫자여야 합니다.`;
+            if(!firstError) firstError = `${index + 1}번째 줄: 학년/반/번호는 숫자여야 함`;
             return;
         }
 
-        // 이름의 공백/특수문자 제거 및 전화번호 처리
         const cleanName = cols[3].replace(/[\s!@#$%^&*(),.?":{}|<>]/g, '');
         const phone = cols[4] ? cols[4].trim() : "없음";
         
-        // 5자리 학번 생성 (학년 1자리 + 반 2자리 + 번호 2자리)
         const studentId = `${grade}${classNum.padStart(2, '0')}${studentNum.padStart(2, '0')}`;
 
-        // Firebase에 전송할 데이터 구조 만들기
         updates['settings/roster/' + studentId] = { 
             name: cleanName, 
             phone: phone, 
@@ -187,35 +175,55 @@ function handleDataProcessing(rawData) {
         successCount++;
     });
 
-    // 🔴 성공한 데이터가 단 하나도 없을 경우
     if (successCount === 0) {
         resultDiv.style.color = "red";
         resultDiv.innerHTML = `❌ 실패: 저장할 유효한 학생 데이터가 없습니다.<br><small>(${firstError || '내용이 비어있습니다'})</small>`;
         return;
     }
 
-    // 🟡 정상적으로 처리 중임을 표시
-    resultDiv.style.color = "blue";
-    resultDiv.innerText = `⏳ ${successCount}명 저장 중...`;
+    // --- 대량 데이터 분할 전송 로직 (120명 멈춤 방지) ---
+    const entries = Object.entries(updates);
+    const totalCount = entries.length;
+    let completedCount = 0;
+    const chunkSize = 10; // 10명씩 안전하게 전송
 
-    // 🟢 Firebase에 실제 저장 요청
-    db.ref().update(updates).then(() => {
-        resultDiv.style.color = "green";
-        // 일부 실패한 데이터가 있으면 ⚠️ 아이콘과 함께 알려줍니다.
-        const failMessage = failCount > 0 ? `<br><small style="color:orange;">⚠️ ${failCount}건은 형식이 맞지 않아 제외됨 (${firstError})</small>` : '';
-        resultDiv.innerHTML = `✅ 성공: 총 ${successCount}명의 학생 명단이 등록되었습니다! ${failMessage}`;
-        
-        alert(`${successCount}명 저장 완료!`);
-        
-        // 저장이 끝난 후 5번 탭(전체 명단 조회)이 열려있다면 새로고침 해줍니다.
-        if (document.getElementById('tab-view').classList.contains('active')) {
-            loadRoster();
+    resultDiv.style.color = "blue";
+    resultDiv.innerText = `⏳ 서버 전송 준비 중... (총 ${totalCount}명)`;
+
+    function uploadChunk(startIndex) {
+        const chunk = entries.slice(startIndex, startIndex + chunkSize);
+        if (chunk.length === 0) {
+            resultDiv.style.color = "green";
+            const failMessage = failCount > 0 ? `<br><small style="color:orange;">⚠️ ${failCount}건 제외됨 (${firstError})</small>` : '';
+            resultDiv.innerHTML = `✅ 성공: 총 ${totalCount}명의 학생 명단이 등록되었습니다! ${failMessage}`;
+            alert(`${totalCount}명 저장 완료!`);
+            if (document.getElementById('tab-view').classList.contains('active')) loadRoster();
+            return;
         }
-    }).catch(error => {
-        resultDiv.style.color = "red";
-        resultDiv.innerText = `❌ 저장 실패 (서버 오류): ${error.message}`;
-    });
+
+        const chunkUpdates = {};
+        chunk.forEach(([key, value]) => chunkUpdates[key] = value);
+
+        db.ref().update(chunkUpdates)
+            .then(() => {
+                completedCount += chunk.length;
+                resultDiv.innerText = `⏳ 저장 중... (${completedCount} / ${totalCount}명 완료)`;
+                // 0.2초 쉬고 다음 10명 전송
+                setTimeout(() => uploadChunk(startIndex + chunkSize), 200);
+            })
+            .catch(error => {
+                resultDiv.style.color = "red";
+                resultDiv.innerHTML = `❌ 저장 실패 (${completedCount}명 이후 멈춤): ${error.message}`;
+            });
+    }
+
+    uploadChunk(0);
 }
+
+
+
+
+        
         function loadRoster() {
             const body = document.getElementById('roster-table-body');
             body.innerHTML = '<tr><td colspan="4">불러오는 중...</td></tr>';
